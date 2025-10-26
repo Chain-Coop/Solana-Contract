@@ -8,7 +8,7 @@ interface IChainCoopSaving {
     struct SavingPool {
         address saver;
         address tokenToSaveWith;
-        string Reason;
+        bytes32 Reason;
         bytes32 poolIndex;
         uint64 startDate;
         uint64 Duration;

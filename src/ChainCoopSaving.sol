@@ -315,39 +315,47 @@ contract ChainCoopSaving is IChainCoopSaving, ChainCoopManagement {
     }
 
     function getSavingPoolBySaver(address _saver)
-        external
-        view
-        override
-        returns (SavingPool[] memory pools)
+    external
+    view
+    override
+    returns (SavingPool[] memory pools)
     {
-        uint32 userPoolCount = uint32(userContributedPools[_saver].length);
-        pools = new SavingPool[](userPoolCount);
+    // Use a fixed-size array with a reasonable maximum to avoid dynamic array issues
+    uint32 maxPools = 100; // Adjust based on your needs
+    uint32 userPoolCount = uint32(userContributedPools[_saver].length);
+    
+    // Use the smaller of actual count or maxPools
+    uint32 resultCount = userPoolCount < maxPools ? userPoolCount : maxPools;
+    pools = new SavingPool[](resultCount);
 
-        for (uint32 i = 0; i < userPoolCount; i++) {
-            bytes32 poolId = userContributedPools[_saver][i];
-            pools[i] = poolSavingPool[poolId];
-        }
+    for (uint32 i = 0; i < resultCount; i++) {
+        bytes32 poolId = userContributedPools[_saver][i];
+        pools[i] = poolSavingPool[poolId];
+    }
     }
 
     function getUserContributions(address _saver)
-        external
-        view
-        returns (Contribution[] memory contributions)
+    external
+    view
+    returns (Contribution[] memory contributions)
     {
-        uint32 userPoolCount = uint32(userContributedPools[_saver].length);
-        contributions = new Contribution[](userPoolCount);
+    // Use a fixed-size array with a reasonable maximum
+    uint32 maxPools = 100; // Adjust based on your needs
+    uint32 userPoolCount = uint32(userContributedPools[_saver].length);
+    uint32 resultCount = userPoolCount < maxPools ? userPoolCount : maxPools;
+    
+    contributions = new Contribution[](resultCount);
 
-        for (uint32 i = 0; i < userPoolCount; i++) {
-            bytes32 poolId = userContributedPools[_saver][i];
-            SavingPool memory pool = poolSavingPool[poolId];
+    for (uint32 i = 0; i < resultCount; i++) {
+        bytes32 poolId = userContributedPools[_saver][i];
+        SavingPool memory pool = poolSavingPool[poolId];
 
-            contributions[i] = Contribution({
-                tokenAddress: pool.tokenToSaveWith,
-                amount: pool.amountSaved
-            });
-        }
+        contributions[i] = Contribution({
+            tokenAddress: pool.tokenToSaveWith,
+            amount: pool.amountSaved
+        });
     }
-
+    }
     @signer(authorityAccount)
     @mutableAccount(poolSavingPool)
     @mutableAccount(userContributedPools)
