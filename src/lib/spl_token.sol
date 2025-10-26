@@ -147,17 +147,17 @@ library SplToken {
 
 	/// Get the total supply for the mint, i.e. the total amount in circulation
 	/// @param account The AccountInfo struct for the mint account
-	function total_supply(AccountInfo account) internal view returns (uint64) {
+	function total_supply(AccountInfo account) internal view returns (uint32) {
 	
-		return account.data.readUint64LE(36);
+		return account.data.readUint32LE(36);
 	}
 
 	/// Get the balance for an account.
 	///
 	/// @param account the struct AccountInfo whose account balance we want to retrive
-	function get_balance(AccountInfo account) internal view returns (uint64) {
+	function get_balance(AccountInfo account) internal view returns (uint32) {
 
-		return account.data.readUint64LE(64);
+		return account.data.readUint32LE(64);
 	}
 
 	/// Get the account info for an account. This walks the transaction account infos
@@ -186,13 +186,13 @@ library SplToken {
 	struct TokenAccountData {
 		address mintAccount;
 		address owner;
-		uint64 balance;
+		uint32 balance;
 		bool delegate_present;
 		address delegate;
 		AccountState state;
 		bool is_native_present;
-		uint64 is_native;
-		uint64 delegated_amount;
+		uint32 is_native;
+		uint32 delegated_amount;
 		bool close_authority_present;
 		address close_authority;
 	}
@@ -207,13 +207,13 @@ library SplToken {
 			{
 				mintAccount: ai.data.readAddress(0), 
 				owner: ai.data.readAddress(32),
-			 	balance: ai.data.readUint64LE(64),
+			 	balance: ai.data.readUint32LE(64),
 				delegate_present: ai.data.readUint32LE(72) > 0,
 				delegate: ai.data.readAddress(76),
 				state: AccountState(ai.data[108]),
 				is_native_present: ai.data.readUint32LE(109) > 0,
-				is_native: ai.data.readUint64LE(113),
-				delegated_amount: ai.data.readUint64LE(121),
+				is_native: ai.data.readUint32LE(113),
+				delegated_amount: ai.data.readUint32LE(121),
 				close_authority_present: ai.data.readUint32LE(129) > 0,
 				close_authority: ai.data.readAddress(133)
 			}
@@ -226,7 +226,7 @@ library SplToken {
 	struct MintAccountData {
 		bool authority_present;
 		address mint_authority;
-		uint64 supply;
+		uint32 supply;
 		uint8 decimals;
 		bool is_initialized;
 		bool freeze_authority_present;
@@ -244,7 +244,7 @@ library SplToken {
 		MintAccountData data = MintAccountData( {
 			authority_present: authority_present > 0,
 			mint_authority: ai.data.readAddress(4),
-			supply: ai.data.readUint64LE(36),
+			supply: ai.data.readUint32LE(36),
 			decimals: uint8(ai.data[44]),
 			is_initialized: ai.data[45] > 0,
 			freeze_authority_present: freeze_authority_present > 0,

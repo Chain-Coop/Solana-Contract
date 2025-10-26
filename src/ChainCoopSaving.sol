@@ -320,10 +320,10 @@ contract ChainCoopSaving is IChainCoopSaving, ChainCoopManagement {
         override
         returns (SavingPool[] memory pools)
     {
-        uint64 userPoolCount = uint64(userContributedPools[_saver].length);
+        uint32 userPoolCount = uint32(userContributedPools[_saver].length);
         pools = new SavingPool[](userPoolCount);
 
-        for (uint64 i = 0; i < userPoolCount; i++) {
+        for (uint32 i = 0; i < userPoolCount; i++) {
             bytes32 poolId = userContributedPools[_saver][i];
             pools[i] = poolSavingPool[poolId];
         }
@@ -334,10 +334,10 @@ contract ChainCoopSaving is IChainCoopSaving, ChainCoopManagement {
         view
         returns (Contribution[] memory contributions)
     {
-        uint64 userPoolCount = uint64(userContributedPools[_saver].length);
+        uint32 userPoolCount = uint32(userContributedPools[_saver].length);
         contributions = new Contribution[](userPoolCount);
 
-        for (uint64 i = 0; i < userPoolCount; i++) {
+        for (uint32 i = 0; i < userPoolCount; i++) {
             bytes32 poolId = userContributedPools[_saver][i];
             SavingPool memory pool = poolSavingPool[poolId];
 
