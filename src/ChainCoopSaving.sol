@@ -347,4 +347,15 @@ contract ChainCoopSaving is IChainCoopSaving, ChainCoopManagement {
             });
         }
     }
+
+    @signer(authorityAccount)
+    @mutableAccount(poolSavingPool)
+    @mutableAccount(userContributedPools)
+    @mutableAccount(userPoolBalance)
+    function transferOwnership(address newOwner) external {
+        require(msg.sender == authority, "Not authorized");
+        require(newOwner != address(0), "Invalid address");
+        emit AdminChanged(authority, newOwner);
+        authority = newOwner;
+    }
 }
