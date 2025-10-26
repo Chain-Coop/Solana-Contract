@@ -20,9 +20,10 @@ contract ChainCoopManagement {
     }
 
     constructor(address _tokenAddress, address initial_authority) {
-        authority = initial_authority;
-        isTokenAllowed[_tokenAddress] = true;
-    }
+    require(initial_authority != address(0), "Invalid authority address");
+    authority = initial_authority;
+    isTokenAllowed[_tokenAddress] = true;
+}
 
     @signer(authorityAccount)
     function transferOwnership(address newOwner) external {
