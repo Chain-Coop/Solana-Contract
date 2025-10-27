@@ -1,76 +1,60 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.25;
+pragma solidity ^0.8.20;
 
+import "./LibChainCoopSaving.sol";
+import "./spl_token.sol";
 import "./ChainCoopManagement.sol";
-import "./lib/spl_token.sol";
-import {AccountMeta, AccountInfo} from "solana";
-import {IChainCoopSaving} from "./interface/IChainCoopSaving.sol";
-import {LibChainCoopSaving} from "./lib/LibChainCoopSaving.sol";
+import "./IChainCoopSaving.sol";
 
-// Solana-specific: Program ID for the ChainCoop contract
 @program_id("HSgbc9ZehSwuPf82se5KZ8UT3zHfbMQpFARFa2456YU7")
+contract ChainCoopSaving is IChainCoopSaving {
+    using LibChainCoopSaving for uint64; // if the lib uses a using pattern; optional
 
-contract ChainCoopSaving is IChainCoopSaving, ChainCoopManagement {
-    // Reentrancy guard state
-    uint8 private _status;
-    uint8 private constant _NOT_ENTERED = 1;
-    uint8 private constant _ENTERED = 2;
+    // Storage
+    mapping(bytes32 => IChainCoopSaving.SavingPool) public poolSavingPool;
+    // Avoid dynamic array push/pop issues on Windows/Solang by using an indexed mapping
+    mapping(address => mapping(uint64 => bytes32)) private userPoolsByIndex;
+    mapping(address => uint64) private userPoolCount; // number of pools per user
 
-    modifier nonReentrant() {
-        require(_status != _ENTERED, "Reentrancy detected");
-        _status = _ENTERED;
-        _;
-        _status = _NOT_ENTERED;
-    }
+    mapping(address => mapping(bytes32 => uint64)) public userPoolBalance;
+
+    uint64 private totalPools;
+
+    // Reference to ChainCoopManagement to check allowed tokens / fees (optional)
+    address public chainCoopManagementAddress;
 
     // Events
-    event OpenSavingPool(
-        address indexed user,
-        address indexed _tokenAddress,
-        uint64 _index,
-        uint64 initialAmount,
-        uint64 startTime,
-        LockingType lockType,
-        uint64 duration,
-        bytes32 _poolId
-    );
-    event Withdraw(
-        address indexed user,
-        address indexed _tokenAddress,
-        uint64 amount,
-        bytes32 _poolId
-    );
-    event UpdateSaving(
-        address indexed user,
-        address indexed _tokenAddress,
-        uint64 amount,
-        bytes32 _poolId
-    );
-    event RestartSaving(address _poolOwner, bytes32 _poolId);
-    event StopSaving(address _poolOwner, bytes32 _poolId);
-    event PoolClosed(address indexed user, bytes32 indexed poolId);
+    event PoolOpened(address indexed saver, bytes32 poolId, uint64 amount, uint64 poolIndex);
+    event PoolUpdated(address indexed saver, bytes32 poolId, uint64 newAmount);
+    event Withdraw(address indexed saver, address token, uint64 amount, bytes32 poolId);
+    event PoolClosed(address indexed saver, bytes32 poolId);
+    event PoolStopped(address indexed saver, bytes32 poolId);
+    event PoolRestarted(address indexed saver, bytes32 poolId);
 
-    struct Contribution {
-        address tokenAddress;
-        uint64 amount;
+    constructor(address _chainCoopManagement) {
+        chainCoopManagementAddress = _chainCoopManagement;
+        totalPools = 0;
     }
 
-    // Mappings - stored as PDAs on Solana
-    mapping(bytes32 => SavingPool) public poolSavingPool;
-    mapping(address => mapping(bytes32 => uint64)) public userPoolBalance;
-    mapping(address => bytes32[]) public userContributedPools;
+    /* -------------------------
+       Helper / Internal
+       ------------------------- */
 
-    // Pool Count
-    uint64 public poolCount;
-
-    constructor(address _tokenAddress, address _initialOwner)
-        ChainCoopManagement(_tokenAddress, _initialOwner)
-    {
-        require(_initialOwner != address(0), "Invalid owner");
-        _status = _NOT_ENTERED;
-        poolCount = 0;
+    function _isTokenAllowed(address token) internal view returns (bool) {
+        if (chainCoopManagementAddress == address(0)) {
+            return true; // if management not set, accept
+        }
+        ChainCoopManagement mgmt = ChainCoopManagement(chainCoopManagementAddress);
+        return mgmt.isTokenAllowed(token);
     }
 
+    function _makePoolId(address saver, uint64 index, uint64 startDate) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(saver, index, startDate));
+    }
+
+    /* -------------------------
+       Open a new saving pool
+       ------------------------- */
     @signer(userAccount)
     @mutableAccount(poolSavingPool)
     @mutableAccount(userContributedPools)
@@ -81,88 +65,77 @@ contract ChainCoopSaving is IChainCoopSaving, ChainCoopManagement {
     function openSavingPool(
         address _tokenTosaveWith,
         uint64 _savedAmount,
-        string calldata _reason,
+        string calldata /* _reason (kept for external API compatibility) */,
         LockingType _locktype,
         uint64 _duration
-    ) external override onlyAllowedTokens(_tokenTosaveWith) {
-        require(_savedAmount > 0, "Amount must be greater than zero");
-        require(_duration > 0, "Duration must be greater than zero");
-
+    ) external override {
         address signer = tx.accounts.userAccount.key;
-        uint64 _index = poolCount;
-        bool accomplished = false;
-        if (_locktype == LockingType.FLEXIBLE) {
-            accomplished = true;
-        }
+        require(signer != address(0), "Invalid signer");
+        require(_savedAmount > 0, "Amount must be > 0");
+        require(_isTokenAllowed(_tokenTosaveWith), "Token not allowed");
 
-        uint64 _starttime = uint64(block.timestamp);
+        // create an index for this user's pool
+        uint64 userIndex = userPoolCount[signer];
+        uint64 startDate = uint64(block.timestamp);
 
-        bytes32 _poolId = LibChainCoopSaving.generatePoolIndex(
-            signer, _starttime, _savedAmount
-        );
+        bytes32 poolId = _makePoolId(signer, userIndex, startDate);
 
-        // Ensure pool doesn't already exist
-        require(
-            poolSavingPool[_poolId].saver == address(0), "Pool already exists"
-        );
+        IChainCoopSaving.SavingPool storage pool = poolSavingPool[poolId];
 
-        // Solana: Use SPL Token transfer via CPI
+        pool.saver = signer;
+        pool.tokenToSaveWith = _tokenTosaveWith;
+        // Reason stored off-chain or as bytes32: left empty to avoid dynamic string storage issues
+        pool.Reason = bytes32(0);
+        pool.poolIndex = poolId;
+        pool.startDate = startDate;
+        pool.Duration = _duration;
+        pool.amountSaved = _savedAmount;
+        pool.locktype = _locktype;
+        pool.isGoalAccomplished = false;
+        pool.isStoped = false;
+
+        // Store mapping index
+        userPoolsByIndex[signer][userIndex] = poolId;
+        userPoolCount[signer] = userIndex + 1;
+
+        // Update totals
+        totalPools += 1;
+
+        // Track user's balance for this pool
+        userPoolBalance[signer][poolId] = _savedAmount;
+
+        // Transfer tokens from user to vault (assumes user already approved or associated)
         SplToken.transfer(
             tx.accounts.userTokenAccount.key,
             tx.accounts.vaultTokenAccount.key,
-            tx.accounts.owner.key,
+            tx.accounts.userAccount.key, // signer is authority on user's token account
             _savedAmount
         );
 
-        SavingPool memory pool = SavingPool({
-            saver: signer,
-            tokenToSaveWith: _tokenTosaveWith,
-            Reason: _reason,
-            poolIndex: _poolId,
-            startDate: _starttime,
-            Duration: _duration,
-            amountSaved: _savedAmount,
-            locktype: _locktype,
-            isGoalAccomplished: accomplished,
-            isStoped: false
-        });
-
-        poolCount++;
-        poolSavingPool[_poolId] = pool;
-        userContributedPools[signer].push(_poolId);
-        userPoolBalance[signer][_poolId] += _savedAmount;
-
-        emit OpenSavingPool(
-            signer,
-            _tokenTosaveWith,
-            _index,
-            _savedAmount,
-            _starttime,
-            _locktype,
-            _duration,
-            _poolId
-        );
+        emit PoolOpened(signer, poolId, _savedAmount, userIndex);
     }
 
+    /* -------------------------
+       Update an existing pool
+       ------------------------- */
     @signer(userAccount)
     @mutableAccount(poolSavingPool)
     @mutableAccount(userPoolBalance)
     @account(userTokenAccount)
     @account(vaultTokenAccount)
-    function updateSaving(bytes32 _poolId, uint64 _amount) external override {
+    function updateSaving(bytes32 _poolIndex, uint64 _amount) external override {
         address signer = tx.accounts.userAccount.key;
-        SavingPool storage pool = poolSavingPool[_poolId];
+        IChainCoopSaving.SavingPool storage pool = poolSavingPool[_poolIndex];
 
-        require(pool.saver != address(0), "Pool does not exist");
-        require(pool.saver == signer, "Not pool owner");
+        require(pool.saver == signer, "Not the pool owner");
         require(!pool.isStoped, "Pool is stopped");
-        require(
-            pool.locktype != LockingType.STRICTLOCK,
-            "Cannot update strict lock savings"
-        );
-        require(_amount > 0, "Amount must be greater than zero");
+        require(_amount > 0, "Amount must be > 0");
 
-        // Transfer tokens to vault
+        // increase pool and user balance
+        pool.amountSaved += _amount;
+        userPoolBalance[signer][_poolIndex] += _amount;
+
+        // Transfer tokens from user to vault
         SplToken.transfer(
             tx.accounts.userTokenAccount.key,
             tx.accounts.vaultTokenAccount.key,
@@ -170,47 +143,12 @@ contract ChainCoopSaving is IChainCoopSaving, ChainCoopManagement {
             _amount
         );
 
-        pool.amountSaved += _amount;
-        userPoolBalance[signer][_poolId] += _amount;
-
-        // Check if goal is accomplished for LOCK type
-        if (pool.locktype == LockingType.LOCK) {
-            if (pool.startDate + pool.Duration <= uint64(block.timestamp)) {
-                pool.isGoalAccomplished = true;
-            }
-        }
-
-        emit UpdateSaving(signer, pool.tokenToSaveWith, _amount, pool.poolIndex);
+        emit PoolUpdated(signer, _poolIndex, pool.amountSaved);
     }
 
-    @signer(userAccount)
-    @mutableAccount(poolSavingPool)
-    function stopSaving(bytes32 _poolId) external override {
-        address signer = tx.accounts.userAccount.key;
-        SavingPool storage pool = poolSavingPool[_poolId];
-
-        require(pool.saver != address(0), "Pool does not exist");
-        require(pool.saver == signer, "Not pool owner");
-        require(!pool.isStoped, "Pool already stopped");
-
-        pool.isStoped = true;
-        emit StopSaving(signer, _poolId);
-    }
-
-    @signer(userAccount)
-    @mutableAccount(poolSavingPool)
-    function restartSaving(bytes32 _poolId) external override {
-        address signer = tx.accounts.userAccount.key;
-        SavingPool storage pool = poolSavingPool[_poolId];
-
-        require(pool.saver != address(0), "Pool does not exist");
-        require(pool.saver == signer, "Not pool owner");
-        require(pool.isStoped, "Pool is not stopped");
-
-        pool.isStoped = false;
-        emit RestartSaving(signer, _poolId);
-    }
-
+    /* -------------------------
+       Withdraw
+       ------------------------- */
     @signer(userAccount)
     @mutableAccount(poolSavingPool)
     @mutableAccount(userContributedPools)
@@ -219,12 +157,13 @@ contract ChainCoopSaving is IChainCoopSaving, ChainCoopManagement {
     @account(vaultTokenAccount)
     @account(vaultAuthority)
     @account(feeTokenAccount)
-    function withdraw(bytes32 _poolId) external override nonReentrant {
+    function withdraw(bytes32 _poolId) external override {
         address signer = tx.accounts.userAccount.key;
-        SavingPool storage pool = poolSavingPool[_poolId];
+        IChainCoopSaving.SavingPool storage pool = poolSavingPool[_poolId];
 
         require(pool.saver != address(0), "Pool does not exist");
         require(pool.saver == signer, "Not pool owner");
+        require(!pool.isStoped, "Pool is stopped");
         require(pool.amountSaved > 0, "No funds to withdraw");
 
         uint64 amountToWithdraw = pool.amountSaved;
@@ -239,7 +178,7 @@ contract ChainCoopSaving is IChainCoopSaving, ChainCoopManagement {
             pool.amountSaved = 0;
             pool.isGoalAccomplished = true;
 
-            // Transfer from vault to user
+            // Transfer from vault to user (vaultAuthority signs)
             SplToken.transfer(
                 tx.accounts.vaultTokenAccount.key,
                 tx.accounts.userTokenAccount.key,
@@ -249,7 +188,6 @@ contract ChainCoopSaving is IChainCoopSaving, ChainCoopManagement {
         } else if (pool.isGoalAccomplished) {
             pool.amountSaved = 0;
 
-            // Transfer from vault to user
             SplToken.transfer(
                 tx.accounts.vaultTokenAccount.key,
                 tx.accounts.userTokenAccount.key,
@@ -262,7 +200,6 @@ contract ChainCoopSaving is IChainCoopSaving, ChainCoopManagement {
             uint64 amountReturnToUser = pool.amountSaved - feeAmount;
             pool.amountSaved = 0;
 
-            // Transfer to user
             SplToken.transfer(
                 tx.accounts.vaultTokenAccount.key,
                 tx.accounts.userTokenAccount.key,
@@ -270,8 +207,9 @@ contract ChainCoopSaving is IChainCoopSaving, ChainCoopManagement {
                 amountReturnToUser
             );
 
-            // Transfer fee
-            require(chainCoopFees != address(0), "Fee address not set");
+            // Transfer fee to feeTokenAccount
+            require(chainCoopManagementAddress != address(0), "Fee manager not set");
+
             SplToken.transfer(
                 tx.accounts.vaultTokenAccount.key,
                 tx.accounts.feeTokenAccount.key,
@@ -280,90 +218,90 @@ contract ChainCoopSaving is IChainCoopSaving, ChainCoopManagement {
             );
         }
 
-        emit Withdraw(
-            signer, pool.tokenToSaveWith, amountToWithdraw, pool.poolIndex
-        );
+        // Reset user balance
+        userPoolBalance[signer][_poolId] = 0;
 
-        // Clean up storage
-        delete userPoolBalance[signer][_poolId];
+        emit Withdraw(signer, pool.tokenToSaveWith, amountToWithdraw, _poolId);
 
-        bytes32[] storage userPools = userContributedPools[signer];
-        for (uint64 i = 0; i < userPools.length; i++) {
-            if (userPools[i] == _poolId) {
-                userPools[i] = userPools[userPools.length - 1];
-                userPools.pop();
-                break;
+        // Remove pool from user's index map: swap-last technique using indices
+        // Find the pool index in user's list
+        uint64 count = userPoolCount[signer];
+        if (count > 0) {
+            uint64 foundIndex = type(uint64).max;
+            for (uint64 i = 0; i < count; i++) {
+                bytes32 pid = userPoolsByIndex[signer][i];
+                if (pid == _poolId) {
+                    foundIndex = i;
+                    break;
+                }
+            }
+            if (foundIndex != type(uint64).max) {
+                uint64 lastIndex = count - 1;
+                if (foundIndex != lastIndex) {
+                    // move last into position
+                    bytes32 lastPid = userPoolsByIndex[signer][lastIndex];
+                    userPoolsByIndex[signer][foundIndex] = lastPid;
+                }
+                // delete last
+                delete userPoolsByIndex[signer][lastIndex];
+                userPoolCount[signer] = lastIndex;
             }
         }
 
+        // Delete pool from global mapping
         delete poolSavingPool[_poolId];
+        if (totalPools > 0) {
+            totalPools -= 1;
+        }
 
         emit PoolClosed(signer, _poolId);
     }
 
-    function getSavingPoolCount() external view override returns (uint64) {
-        return poolCount;
+    /* -------------------------
+       Stop / Restart
+       ------------------------- */
+    @signer(userAccount)
+    @mutableAccount(poolSavingPool)
+    function stopSaving(bytes32 _poolId) external override {
+        address signer = tx.accounts.userAccount.key;
+        IChainCoopSaving.SavingPool storage pool = poolSavingPool[_poolId];
+        require(pool.saver == signer, "Not the pool owner");
+        pool.isStoped = true;
+
+        emit PoolStopped(signer, _poolId);
     }
 
-    function getSavingPoolByIndex(bytes32 _index)
-        external
-        view
-        override
-        returns (SavingPool memory)
-    {
+    @signer(userAccount)
+    @mutableAccount(poolSavingPool)
+    function restartSaving(bytes32 _poolId) external override {
+        address signer = tx.accounts.userAccount.key;
+        IChainCoopSaving.SavingPool storage pool = poolSavingPool[_poolId];
+        require(pool.saver == signer, "Not the pool owner");
+        pool.isStoped = false;
+
+        emit PoolRestarted(signer, _poolId);
+    }
+
+    /* -------------------------
+       Getters
+       ------------------------- */
+
+    function getSavingPoolCount() external view override returns (uint64) {
+        return totalPools;
+    }
+
+    function getSavingPoolByIndex(bytes32 _index) external view override returns (IChainCoopSaving.SavingPool memory) {
         return poolSavingPool[_index];
     }
 
-    function getSavingPoolBySaver(address _saver)
-    external
-    view
-    override
-    returns (SavingPool[] memory pools)
-    {
-    // Use a fixed-size array with a reasonable maximum to avoid dynamic array issues
-    uint32 maxPools = 100; // Adjust based on your needs
-    uint32 userPoolCount = uint32(userContributedPools[_saver].length);
-    
-    // Use the smaller of actual count or maxPools
-    uint32 resultCount = userPoolCount < maxPools ? userPoolCount : maxPools;
-    pools = new SavingPool[](resultCount);
-
-    for (uint32 i = 0; i < resultCount; i++) {
-        bytes32 poolId = userContributedPools[_saver][i];
-        pools[i] = poolSavingPool[poolId];
-    }
-    }
-
-    function getUserContributions(address _saver)
-    external
-    view
-    returns (Contribution[] memory contributions)
-    {
-    // Use a fixed-size array with a reasonable maximum
-    uint32 maxPools = 100; // Adjust based on your needs
-    uint32 userPoolCount = uint32(userContributedPools[_saver].length);
-    uint32 resultCount = userPoolCount < maxPools ? userPoolCount : maxPools;
-    
-    contributions = new Contribution[](resultCount);
-
-    for (uint32 i = 0; i < resultCount; i++) {
-        bytes32 poolId = userContributedPools[_saver][i];
-        SavingPool memory pool = poolSavingPool[poolId];
-
-        contributions[i] = Contribution({
-            tokenAddress: pool.tokenToSaveWith,
-            amount: pool.amountSaved
-        });
-    }
-    }
-    @signer(authorityAccount)
-    @mutableAccount(poolSavingPool)
-    @mutableAccount(userContributedPools)
-    @mutableAccount(userPoolBalance)
-    function transferOwnership(address newOwner) external {
-        require(msg.sender == authority, "Not authorized");
-        require(newOwner != address(0), "Invalid address");
-        emit AdminChanged(authority, newOwner);
-        authority = newOwner;
+    // Return user pools as a memory array (builds array from indexed mapping)
+    function getSavingPoolBySaver(address _saver) external view override returns (IChainCoopSaving.SavingPool[] memory) {
+        uint64 count = userPoolCount[_saver];
+        IChainCoopSaving.SavingPool[] memory result = new IChainCoopSaving.SavingPool[](count);
+        for (uint64 i = 0; i < count; i++) {
+            bytes32 pid = userPoolsByIndex[_saver][i];
+            result[i] = poolSavingPool[pid];
+        }
+        return result;
     }
 }
