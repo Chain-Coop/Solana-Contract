@@ -314,8 +314,6 @@ contract ChainCoopSaving is IChainCoopSaving {
         return userPoolsByIndex[_saver][_index];
     }
 
-    // (Optional) If your Solang version supports returning dynamic arrays of structs,
-    // you can keep or re-enable this — but if it errors, use the two getters above instead.
     /*
     function getSavingPoolBySaver(address _saver) external view override returns (IChainCoopSaving.SavingPool[] memory) {
         uint64 count = userPoolCount[_saver];
