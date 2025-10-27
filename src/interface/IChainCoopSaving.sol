@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.25;
+
 interface IChainCoopSaving {
     enum LockingType {
         FLEXIBLE,
@@ -8,14 +11,14 @@ interface IChainCoopSaving {
     struct SavingPool {
         address saver;
         address tokenToSaveWith;
-        bytes32 Reason;
+        bytes32 reason;
         bytes32 poolIndex;
         uint64 startDate;
-        uint64 Duration;
+        uint64 duration;
         uint64 amountSaved;
         LockingType locktype;
         bool isGoalAccomplished;
-        bool isStoped;
+        bool isStopped;
     }
 
     @signer(userAccount)
@@ -26,9 +29,9 @@ interface IChainCoopSaving {
     @account(vaultTokenAccount)
     @account(owner)
     function openSavingPool(
-        address _tokenTosaveWith,
+        address _tokenToSaveWith,
         uint64 _savedAmount,
-        string calldata _reason,
+        string memory _reason,
         LockingType _locktype,
         uint64 _duration
     ) external;
@@ -64,9 +67,4 @@ interface IChainCoopSaving {
         external
         view
         returns (SavingPool memory);
-
-    function getSavingPoolBySaver(address _saver)
-        external
-        view
-        returns (SavingPool[] memory);
 }

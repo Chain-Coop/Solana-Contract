@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "./LibChainCoopSaving.sol";
-import "./spl_token.sol";
+import "./lib/LibChainCoopSaving.sol";
+import "./lib/spl_token.sol";
 import "./ChainCoopManagement.sol";
-import "./IChainCoopSaving.sol";
+import "./interface/IChainCoopSaving.sol";
 
 @program_id("HSgbc9ZehSwuPf82se5KZ8UT3zHfbMQpFARFa2456YU7")
 contract ChainCoopSaving is IChainCoopSaving {
-    using LibChainCoopSaving for uint64; // if the lib uses a using pattern; optional
+    using LibChainCoopSaving for *;
 
     // Storage
     mapping(bytes32 => IChainCoopSaving.SavingPool) public poolSavingPool;
@@ -23,6 +23,9 @@ contract ChainCoopSaving is IChainCoopSaving {
     // Reference to ChainCoopManagement to check allowed tokens / fees (optional)
     address public chainCoopManagementAddress;
 
+    // Owner (program admin)
+    address public owner;
+
     // Events
     event PoolOpened(address indexed saver, bytes32 poolId, uint64 amount, uint64 poolIndex);
     event PoolUpdated(address indexed saver, bytes32 poolId, uint64 newAmount);
@@ -31,7 +34,15 @@ contract ChainCoopSaving is IChainCoopSaving {
     event PoolStopped(address indexed saver, bytes32 poolId);
     event PoolRestarted(address indexed saver, bytes32 poolId);
 
-    constructor(address _chainCoopManagement) {
+    // -------------------------
+    // Initialization (Solana-friendly)
+    // -------------------------
+    // Call this once after deployment. It replaces the constructor pattern.
+    @signer(ownerAccount)
+    function initialize(address _chainCoopManagement) external {
+        require(owner == address(0), "Already initialized");
+        require(tx.accounts.ownerAccount.key != address(0), "Invalid owner");
+        owner = tx.accounts.ownerAccount.key;
         chainCoopManagementAddress = _chainCoopManagement;
         totalPools = 0;
     }
@@ -65,7 +76,7 @@ contract ChainCoopSaving is IChainCoopSaving {
     function openSavingPool(
         address _tokenTosaveWith,
         uint64 _savedAmount,
-        string calldata /* _reason (kept for external API compatibility) */,
+        string memory /* _reason (kept for external API compatibility) */,
         LockingType _locktype,
         uint64 _duration
     ) external override {
@@ -224,7 +235,6 @@ contract ChainCoopSaving is IChainCoopSaving {
         emit Withdraw(signer, pool.tokenToSaveWith, amountToWithdraw, _poolId);
 
         // Remove pool from user's index map: swap-last technique using indices
-        // Find the pool index in user's list
         uint64 count = userPoolCount[signer];
         if (count > 0) {
             uint64 foundIndex = type(uint64).max;
@@ -294,7 +304,19 @@ contract ChainCoopSaving is IChainCoopSaving {
         return poolSavingPool[_index];
     }
 
-    // Return user pools as a memory array (builds array from indexed mapping)
+    // safer pattern for user pools on Solang: return count and poolId by index
+    function getUserPoolCount(address _saver) external view returns (uint64) {
+        return userPoolCount[_saver];
+    }
+
+    function getUserPoolIdByIndex(address _saver, uint64 _index) external view returns (bytes32) {
+        require(_index < userPoolCount[_saver], "Index out of bounds");
+        return userPoolsByIndex[_saver][_index];
+    }
+
+    // (Optional) If your Solang version supports returning dynamic arrays of structs,
+    // you can keep or re-enable this — but if it errors, use the two getters above instead.
+    /*
     function getSavingPoolBySaver(address _saver) external view override returns (IChainCoopSaving.SavingPool[] memory) {
         uint64 count = userPoolCount[_saver];
         IChainCoopSaving.SavingPool[] memory result = new IChainCoopSaving.SavingPool[](count);
@@ -304,4 +326,5 @@ contract ChainCoopSaving is IChainCoopSaving {
         }
         return result;
     }
+    */
 }
