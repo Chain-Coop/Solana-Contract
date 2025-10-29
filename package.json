@@ -1,14 +1,24 @@
 {
+  "type": "module",
+  "dependencies": {
+    "@solana/web3.js": "^1.98.4"
+  },
   "name": "chain-ccop-saving-solana",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "interact.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
   "license": "ISC",
-  "description": "",
-  "dependencies": {
-    "@solana/web3.js": "^1.98.4"
-  }
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Chain-Coop/Solana-Contract.git"
+  },
+  "keywords": [],
+  "bugs": {
+    "url": "https://github.com/Chain-Coop/Solana-Contract/issues"
+  },
+  "homepage": "https://github.com/Chain-Coop/Solana-Contract#readme",
+  "description": ""
 }
