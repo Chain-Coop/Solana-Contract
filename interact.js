@@ -31,7 +31,7 @@ async function main() {
 
   console.log("Wallet loaded:", payer.publicKey.toBase58());
 
-  // Use a test recipient (can be yourself or a new wallet)
+  // Use a test recipient
   const recipient = Keypair.generate().publicKey;
 
   const instruction = SystemProgram.transfer({
