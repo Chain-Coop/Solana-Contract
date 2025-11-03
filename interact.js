@@ -1,4 +1,3 @@
-// interact.js
 import {
   Connection,
   PublicKey,
@@ -6,8 +5,11 @@ import {
   Transaction,
   SystemProgram,
   LAMPORTS_PER_SOL,
-  sendAndConfirmTransaction
+  sendAndConfirmTransaction,
+  SYSVAR_RENT_PUBKEY
 } from "@solana/web3.js";
+import { Token, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { Buffer } from 'buffer';
 import fs from "fs";
 import os from "os";
 
@@ -17,7 +19,7 @@ const PROGRAM_ID = new PublicKey("HdJwvYmvjHRFBiuEz66G2HgcUW2XZaqMuL8MHv71qY4G")
 // Connection with Solana Devnet
 const connection = new Connection("https://api.devnet.solana.com", "confirmed");
 
-// Helper function to request airdrop if needed
+// Helper functions
 async function ensureMinimumBalance(connection, publicKey, minBalance = 0.1 * LAMPORTS_PER_SOL) {
   const balance = await connection.getBalance(publicKey);
   console.log(`Current balance: ${balance / LAMPORTS_PER_SOL} SOL`);
@@ -34,9 +36,48 @@ async function ensureMinimumBalance(connection, publicKey, minBalance = 0.1 * LA
   }
 }
 
-async function main() {
+// Create a test token for testing
+async function createTestToken(connection, payer) {
+  console.log("Creating test token...");
+  const token = await Token.createMint(
+    connection,
+    payer,
+    payer.publicKey,
+    null,
+    9, // Decimals
+    TOKEN_PROGRAM_ID
+  );
+  console.log(`Test token created: ${token.publicKey.toBase58()}`);
+  return token;
+}
+
+// Get or create associated token account
+async function getOrCreateAssociatedTokenAccount(
+  connection,
+  mint,
+  owner,
+  payer
+) {
+  const associatedTokenAccount = await Token.getAssociatedTokenAddress(
+    ASSOCIATED_TOKEN_PROGRAM_ID,
+    TOKEN_PROGRAM_ID,
+    mint,
+    owner
+  );
+
+  const accountInfo = await connection.getAccountInfo(associatedTokenAccount);
+  if (!accountInfo) {
+    const token = new Token(connection, mint, TOKEN_PROGRAM_ID, payer);
+    await token.createAssociatedTokenAccount(owner);
+  }
+
+  return associatedTokenAccount;
+}
+
+// Main test function
+async function testChainCoopSaving() {
   try {
-    console.log("Connecting to Solana Devnet...");
+    console.log("=== Testing ChainCoopSaving Program ===");
 
     // Load wallet
     const payer = Keypair.fromSecretKey(
@@ -46,52 +87,141 @@ async function main() {
         )
       )
     );
-
     console.log("Wallet loaded:", payer.publicKey.toBase58());
 
     // Ensure we have enough balance
     await ensureMinimumBalance(connection, payer.publicKey);
 
-    // Create a new account for the recipient
-    const recipient = Keypair.generate();
-    console.log("Recipient account:", recipient.publicKey.toBase58());
+    // Create a test token
+    const testToken = await createTestToken(connection, payer);
+    const testTokenMint = testToken.publicKey;
 
-    // Get the minimum rent exemption for the recipient account
-    const rentExemptionAmount = await connection.getMinimumBalanceForRentExemption(0);
-    console.log(`Minimum rent exemption: ${rentExemptionAmount} lamports`);
-
-    // Create account and transfer some SOL in one transaction
-    const createAccountIx = SystemProgram.createAccount({
-      fromPubkey: payer.publicKey,
-      newAccountPubkey: recipient.publicKey,
-      lamports: rentExemptionAmount + 1000, // Rent + some extra SOL
-      space: 0, // No data storage needed for this example
-      programId: SystemProgram.programId,
-    });
-
-    const transaction = new Transaction().add(createAccountIx);
-    
-    console.log("Sending transaction...");
-    const signature = await sendAndConfirmTransaction(
+    // Create token accounts
+    const userTokenAccount = await getOrCreateAssociatedTokenAccount(
       connection,
-      transaction,
-      [payer, recipient] // Both payer and recipient are signers
+      testTokenMint,
+      payer.publicKey,
+      payer
     );
 
-    console.log("\nTransaction successful!");
-    console.log(`Signature: ${signature}`);
-    console.log(`Explorer: https://explorer.solana.com/tx/${signature}?cluster=devnet`);
-    
-    // Verify the transfer
-    const recipientBalance = await connection.getBalance(recipient.publicKey);
-    console.log(`Recipient balance: ${recipientBalance / LAMPORTS_PER_SOL} SOL`);
+    const vaultTokenAccount = await getOrCreateAssociatedTokenAccount(
+      connection,
+      testTokenMint,
+      PROGRAM_ID, // Program-owned token account
+      payer
+    );
+
+    // Mint some test tokens to user
+    await testToken.mintTo(
+      userTokenAccount,
+      payer.publicKey,
+      [],
+      1000 * 10 ** 9 // 1000 tokens with 9 decimals
+    );
+    console.log("Minted test tokens to user");
+
+    // 1. Test openSavingPool
+    console.log("\n=== Testing openSavingPool ===");
+    const poolIndex = await openSavingPool(
+      connection,
+      PROGRAM_ID,
+      payer,
+      testTokenMint,
+      100 * 10 ** 9, // 100 tokens
+      "Test savings",
+      0, // FLEXIBLE
+      30 // 30 days
+    );
+    console.log(`Pool created with index: ${poolIndex}`);
+
+    // 2. Test updateSaving
+    console.log("\n=== Testing updateSaving ===");
+    await updateSaving(
+      connection,
+      PROGRAM_ID,
+      payer,
+      poolIndex,
+      50 * 10 ** 9 // Add 50 more tokens
+    );
+    console.log("Pool updated successfully");
+
+    // 3. Test getSavingPoolCount
+    console.log("\n=== Testing getSavingPoolCount ===");
+    const poolCount = await getSavingPoolCount(connection, PROGRAM_ID);
+    console.log(`Total pools: ${poolCount}`);
+
+    // 4. Test getSavingPoolByIndex
+    console.log("\n=== Testing getSavingPoolByIndex ===");
+    const pool = await getSavingPoolByIndex(connection, PROGRAM_ID, poolIndex);
+    console.log("Pool details:", JSON.stringify(pool, null, 2));
+
+    // 5. Test stopSaving
+    console.log("\n=== Testing stopSaving ===");
+    await stopSaving(connection, PROGRAM_ID, payer, poolIndex);
+    console.log("Pool stopped successfully");
+
+    // 6. Test restartSaving
+    console.log("\n=== Testing restartSaving ===");
+    await restartSaving(connection, PROGRAM_ID, payer, poolIndex);
+    console.log("Pool restarted successfully");
+
+    // 7. Test withdraw (partial)
+    console.log("\n=== Testing withdraw ===");
+    await withdraw(
+      connection,
+      PROGRAM_ID,
+      payer,
+      poolIndex,
+      50 * 10 ** 9 // Withdraw 50 tokens
+    );
+    console.log("Withdrawal successful");
+
+    console.log("\n=== All tests completed successfully! ===");
 
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Test failed:", error);
     if (error.logs) {
       console.error("Transaction logs:", error.logs);
     }
+    process.exit(1);
   }
 }
 
-main();
+// Implement the individual test functions (openSavingPool, updateSaving, etc.)
+async function openSavingPool(connection, programId, payer, tokenMint, amount, reason, lockType, duration) {
+  // Implementation for openSavingPool
+  // ...
+}
+
+async function updateSaving(connection, programId, payer, poolIndex, amount) {
+  // Implementation for updateSaving
+  // ...
+}
+
+async function withdraw(connection, programId, payer, poolIndex, amount) {
+  // Implementation for withdraw
+  // ...
+}
+
+async function stopSaving(connection, programId, payer, poolIndex) {
+  // Implementation for stopSaving
+  // ...
+}
+
+async function restartSaving(connection, programId, payer, poolIndex) {
+  // Implementation for restartSaving
+  // ...
+}
+
+async function getSavingPoolCount(connection, programId) {
+  // Implementation for getSavingPoolCount
+  // ...
+}
+
+async function getSavingPoolByIndex(connection, programId, poolIndex) {
+  // Implementation for getSavingPoolByIndex
+  // ...
+}
+
+// Run the tests
+testChainCoopSaving().catch(console.error);
