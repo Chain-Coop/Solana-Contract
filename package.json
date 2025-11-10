@@ -1,13 +1,12 @@
 {
-  "type": "module",
-  "dependencies": {
-    "@solana/web3.js": "^1.98.4"
-  },
   "name": "chain-ccop-saving-solana",
   "version": "1.0.0",
   "main": "interact.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "solang compile src/ChainCoopSaving.sol --target solana --output target/deploy -v",
+    "test": "mocha -r ts-node/register tests/complete.test.ts --timeout 60000",
+    "test:watch": "mocha -r ts-node/register tests/complete.test.ts --timeout 60000 --watch",
+    "deploy": "solana program deploy target/deploy/ChainCoopSaving.so"
   },
   "author": "",
   "license": "ISC",
@@ -20,5 +19,17 @@
     "url": "https://github.com/Chain-Coop/Solana-Contract/issues"
   },
   "homepage": "https://github.com/Chain-Coop/Solana-Contract#readme",
-  "description": ""
+  "description": "",
+  "devDependencies": {
+    "@coral-xyz/anchor": "^0.32.1",
+    "@solana/spl-token": "^0.4.14",
+    "@solana/web3.js": "^1.98.4",
+    "@types/mocha": "^10.0.10",
+    "chai": "^6.2.0",
+    "mocha": "^11.7.5",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@types/chai": "^5.2.3"
+  }
 }

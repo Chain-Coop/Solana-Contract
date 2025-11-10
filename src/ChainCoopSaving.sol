@@ -82,7 +82,7 @@ library LibChainCoopSaving {
     }
 }
 
-@program_id("HSgbc9ZehSwuPf82se5KZ8UT3zHfbMQpFARFa2456YU7")
+@program_id("948Qgeb7fGxH7tZ8uCdPyEEBw2zm9vk83e57Besee4yb")
 contract ChainCoopSaving is IChainCoopSaving {
     using LibChainCoopSaving for *;
 
