@@ -1,0 +1,957 @@
+{
+  "version": "0.0.1",
+  "name": "ChainCoopSaving",
+  "instructions": [
+    {
+      "name": "new",
+      "accounts": [
+        {
+          "name": "dataAccount",
+          "isMut": true,
+          "isSigner": false,
+          "isOptional": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "poolSavingPool",
+      "accounts": [
+        {
+          "name": "dataAccount",
+          "isMut": false,
+          "isSigner": false,
+          "isOptional": false
+        }
+      ],
+      "args": [
+        {
+          "name": "arg0",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ],
+      "returns": {
+        "defined": "poolSavingPool_returns"
+      }
+    },
+    {
+      "name": "userPoolBalance",
+      "accounts": [
+        {
+          "name": "dataAccount",
+          "isMut": false,
+          "isSigner": false,
+          "isOptional": false
+        }
+      ],
+      "args": [
+        {
+          "name": "arg0",
+          "type": "publicKey"
+        },
+        {
+          "name": "arg1",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ],
+      "returns": "u64"
+    },
+    {
+      "name": "owner",
+      "accounts": [
+        {
+          "name": "dataAccount",
+          "isMut": false,
+          "isSigner": false,
+          "isOptional": false
+        }
+      ],
+      "args": [],
+      "returns": "publicKey"
+    },
+    {
+      "name": "tokenFilteringEnabled",
+      "accounts": [
+        {
+          "name": "dataAccount",
+          "isMut": false,
+          "isSigner": false,
+          "isOptional": false
+        }
+      ],
+      "args": [],
+      "returns": "bool"
+    },
+    {
+      "name": "feeRecipient",
+      "accounts": [
+        {
+          "name": "dataAccount",
+          "isMut": false,
+          "isSigner": false,
+          "isOptional": false
+        }
+      ],
+      "args": [],
+      "returns": "publicKey"
+    },
+    {
+      "name": "initialize",
+      "accounts": [
+        {
+          "name": "dataAccount",
+          "isMut": true,
+          "isSigner": false,
+          "isOptional": false
+        },
+        {
+          "name": "ownerAccount",
+          "isMut": false,
+          "isSigner": true,
+          "isOptional": false
+        }
+      ],
+      "args": [
+        {
+          "name": "feerecipient",
+          "type": "publicKey"
+        }
+      ]
+    },
+    {
+      "name": "setAllowedToken",
+      "accounts": [
+        {
+          "name": "dataAccount",
+          "isMut": true,
+          "isSigner": false,
+          "isOptional": false
+        },
+        {
+          "name": "ownerAccount",
+          "isMut": false,
+          "isSigner": true,
+          "isOptional": false
+        }
+      ],
+      "args": [
+        {
+          "name": "token",
+          "type": "publicKey"
+        },
+        {
+          "name": "allowed",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "setTokenFilteringEnabled",
+      "accounts": [
+        {
+          "name": "dataAccount",
+          "isMut": true,
+          "isSigner": false,
+          "isOptional": false
+        },
+        {
+          "name": "ownerAccount",
+          "isMut": false,
+          "isSigner": true,
+          "isOptional": false
+        }
+      ],
+      "args": [
+        {
+          "name": "enabled",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "setFeeRecipient",
+      "accounts": [
+        {
+          "name": "dataAccount",
+          "isMut": true,
+          "isSigner": false,
+          "isOptional": false
+        },
+        {
+          "name": "ownerAccount",
+          "isMut": false,
+          "isSigner": true,
+          "isOptional": false
+        }
+      ],
+      "args": [
+        {
+          "name": "feerecipient",
+          "type": "publicKey"
+        }
+      ]
+    },
+    {
+      "name": "openSavingPool",
+      "accounts": [
+        {
+          "name": "dataAccount",
+          "isMut": true,
+          "isSigner": false,
+          "isOptional": false
+        },
+        {
+          "name": "userAccount",
+          "isMut": false,
+          "isSigner": true,
+          "isOptional": false
+        },
+        {
+          "name": "poolSavingPool",
+          "isMut": true,
+          "isSigner": false,
+          "isOptional": false
+        },
+        {
+          "name": "userContributedPools",
+          "isMut": true,
+          "isSigner": false,
+          "isOptional": false
+        },
+        {
+          "name": "userPoolBalance",
+          "isMut": true,
+          "isSigner": false,
+          "isOptional": false
+        },
+        {
+          "name": "userTokenAccount",
+          "isMut": false,
+          "isSigner": false,
+          "isOptional": false
+        },
+        {
+          "name": "vaultTokenAccount",
+          "isMut": false,
+          "isSigner": false,
+          "isOptional": false
+        },
+        {
+          "name": "owner",
+          "isMut": false,
+          "isSigner": false,
+          "isOptional": false
+        },
+        {
+          "name": "clock",
+          "isMut": false,
+          "isSigner": false,
+          "isOptional": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false,
+          "isOptional": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false,
+          "isOptional": false
+        }
+      ],
+      "args": [
+        {
+          "name": "tokentosavewith",
+          "type": "publicKey"
+        },
+        {
+          "name": "savedamount",
+          "type": "u64"
+        },
+        {
+          "name": "arg0",
+          "type": "string"
+        },
+        {
+          "name": "locktype",
+          "type": {
+            "defined": "LockingType"
+          }
+        },
+        {
+          "name": "duration",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "updateSaving",
+      "accounts": [
+        {
+          "name": "dataAccount",
+          "isMut": true,
+          "isSigner": false,
+          "isOptional": false
+        },
+        {
+          "name": "userAccount",
+          "isMut": false,
+          "isSigner": true,
+          "isOptional": false
+        },
+        {
+          "name": "poolSavingPool",
+          "isMut": true,
+          "isSigner": false,
+          "isOptional": false
+        },
+        {
+          "name": "userPoolBalance",
+          "isMut": true,
+          "isSigner": false,
+          "isOptional": false
+        },
+        {
+          "name": "userTokenAccount",
+          "isMut": false,
+          "isSigner": false,
+          "isOptional": false
+        },
+        {
+          "name": "vaultTokenAccount",
+          "isMut": false,
+          "isSigner": false,
+          "isOptional": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false,
+          "isOptional": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false,
+          "isOptional": false
+        }
+      ],
+      "args": [
+        {
+          "name": "poolindex",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "withdraw",
+      "accounts": [
+        {
+          "name": "dataAccount",
+          "isMut": true,
+          "isSigner": false,
+          "isOptional": false
+        },
+        {
+          "name": "userAccount",
+          "isMut": false,
+          "isSigner": true,
+          "isOptional": false
+        },
+        {
+          "name": "poolSavingPool",
+          "isMut": true,
+          "isSigner": false,
+          "isOptional": false
+        },
+        {
+          "name": "userContributedPools",
+          "isMut": true,
+          "isSigner": false,
+          "isOptional": false
+        },
+        {
+          "name": "userPoolBalance",
+          "isMut": true,
+          "isSigner": false,
+          "isOptional": false
+        },
+        {
+          "name": "userTokenAccount",
+          "isMut": false,
+          "isSigner": false,
+          "isOptional": false
+        },
+        {
+          "name": "vaultTokenAccount",
+          "isMut": false,
+          "isSigner": false,
+          "isOptional": false
+        },
+        {
+          "name": "vaultAuthority",
+          "isMut": false,
+          "isSigner": false,
+          "isOptional": false
+        },
+        {
+          "name": "feeTokenAccount",
+          "isMut": false,
+          "isSigner": false,
+          "isOptional": false
+        },
+        {
+          "name": "clock",
+          "isMut": false,
+          "isSigner": false,
+          "isOptional": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false,
+          "isOptional": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false,
+          "isOptional": false
+        }
+      ],
+      "args": [
+        {
+          "name": "poolid",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "stopSaving",
+      "accounts": [
+        {
+          "name": "dataAccount",
+          "isMut": true,
+          "isSigner": false,
+          "isOptional": false
+        },
+        {
+          "name": "userAccount",
+          "isMut": false,
+          "isSigner": true,
+          "isOptional": false
+        },
+        {
+          "name": "poolSavingPool",
+          "isMut": true,
+          "isSigner": false,
+          "isOptional": false
+        }
+      ],
+      "args": [
+        {
+          "name": "poolid",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "restartSaving",
+      "accounts": [
+        {
+          "name": "dataAccount",
+          "isMut": true,
+          "isSigner": false,
+          "isOptional": false
+        },
+        {
+          "name": "userAccount",
+          "isMut": false,
+          "isSigner": true,
+          "isOptional": false
+        },
+        {
+          "name": "poolSavingPool",
+          "isMut": true,
+          "isSigner": false,
+          "isOptional": false
+        }
+      ],
+      "args": [
+        {
+          "name": "poolid",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "getSavingPoolCount",
+      "accounts": [
+        {
+          "name": "dataAccount",
+          "isMut": false,
+          "isSigner": false,
+          "isOptional": false
+        }
+      ],
+      "args": [],
+      "returns": "u64"
+    },
+    {
+      "name": "getSavingPoolByIndex",
+      "accounts": [
+        {
+          "name": "dataAccount",
+          "isMut": false,
+          "isSigner": false,
+          "isOptional": false
+        }
+      ],
+      "args": [
+        {
+          "name": "index",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ],
+      "returns": {
+        "defined": "SavingPool"
+      }
+    },
+    {
+      "name": "getUserPoolCount",
+      "accounts": [
+        {
+          "name": "dataAccount",
+          "isMut": false,
+          "isSigner": false,
+          "isOptional": false
+        }
+      ],
+      "args": [
+        {
+          "name": "saver",
+          "type": "publicKey"
+        }
+      ],
+      "returns": "u64"
+    },
+    {
+      "name": "getUserPoolIdByIndex",
+      "accounts": [
+        {
+          "name": "dataAccount",
+          "isMut": false,
+          "isSigner": false,
+          "isOptional": false
+        }
+      ],
+      "args": [
+        {
+          "name": "saver",
+          "type": "publicKey"
+        },
+        {
+          "name": "index",
+          "type": "u64"
+        }
+      ],
+      "returns": {
+        "array": [
+          "u8",
+          32
+        ]
+      }
+    },
+    {
+      "name": "isTokenAllowed",
+      "accounts": [
+        {
+          "name": "dataAccount",
+          "isMut": false,
+          "isSigner": false,
+          "isOptional": false
+        }
+      ],
+      "args": [
+        {
+          "name": "token",
+          "type": "publicKey"
+        }
+      ],
+      "returns": "bool"
+    }
+  ],
+  "types": [
+    {
+      "name": "LockingType",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "FLEXIBLE"
+          },
+          {
+            "name": "LOCK"
+          },
+          {
+            "name": "STRICTLOCK"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SavingPool",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "saver",
+            "type": "publicKey"
+          },
+          {
+            "name": "tokenToSaveWith",
+            "type": "publicKey"
+          },
+          {
+            "name": "reason",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "poolIndex",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "startDate",
+            "type": "u64"
+          },
+          {
+            "name": "duration",
+            "type": "u64"
+          },
+          {
+            "name": "amountSaved",
+            "type": "u64"
+          },
+          {
+            "name": "locktype",
+            "type": {
+              "defined": "LockingType"
+            }
+          },
+          {
+            "name": "isGoalAccomplished",
+            "type": "bool"
+          },
+          {
+            "name": "isStopped",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "poolSavingPool_returns",
+      "docs": [
+        "Data structure to hold the multiple returns of function poolSavingPool"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "saver",
+            "type": "publicKey"
+          },
+          {
+            "name": "tokenToSaveWith",
+            "type": "publicKey"
+          },
+          {
+            "name": "reason",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "poolIndex",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "startDate",
+            "type": "u64"
+          },
+          {
+            "name": "duration",
+            "type": "u64"
+          },
+          {
+            "name": "amountSaved",
+            "type": "u64"
+          },
+          {
+            "name": "locktype",
+            "type": {
+              "defined": "LockingType"
+            }
+          },
+          {
+            "name": "isGoalAccomplished",
+            "type": "bool"
+          },
+          {
+            "name": "isStopped",
+            "type": "bool"
+          }
+        ]
+      }
+    }
+  ],
+  "events": [
+    {
+      "name": "AllowedTokenSet",
+      "fields": [
+        {
+          "name": "token",
+          "type": "publicKey",
+          "index": true
+        },
+        {
+          "name": "allowed",
+          "type": "bool",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "TokenFilteringChanged",
+      "fields": [
+        {
+          "name": "enabled",
+          "type": "bool",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FeeRecipientSet",
+      "fields": [
+        {
+          "name": "newRecipient",
+          "type": "publicKey",
+          "index": true
+        }
+      ]
+    },
+    {
+      "name": "PoolOpened",
+      "fields": [
+        {
+          "name": "saver",
+          "type": "publicKey",
+          "index": true
+        },
+        {
+          "name": "poolId",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          },
+          "index": false
+        },
+        {
+          "name": "amount",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "poolIndex",
+          "type": "u64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "PoolUpdated",
+      "fields": [
+        {
+          "name": "saver",
+          "type": "publicKey",
+          "index": true
+        },
+        {
+          "name": "poolId",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          },
+          "index": false
+        },
+        {
+          "name": "newAmount",
+          "type": "u64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "Withdraw",
+      "fields": [
+        {
+          "name": "saver",
+          "type": "publicKey",
+          "index": true
+        },
+        {
+          "name": "token",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "amount",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "poolId",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          },
+          "index": false
+        },
+        {
+          "name": "feeCharged",
+          "type": "u64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "PoolClosed",
+      "fields": [
+        {
+          "name": "saver",
+          "type": "publicKey",
+          "index": true
+        },
+        {
+          "name": "poolId",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          },
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "PoolStopped",
+      "fields": [
+        {
+          "name": "saver",
+          "type": "publicKey",
+          "index": true
+        },
+        {
+          "name": "poolId",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          },
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "PoolRestarted",
+      "fields": [
+        {
+          "name": "saver",
+          "type": "publicKey",
+          "index": true
+        },
+        {
+          "name": "poolId",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          },
+          "index": false
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "address": "948Qgeb7fGxH7tZ8uCdPyEEBw2zm9vk83e57Besee4yb"
+  }
+}
