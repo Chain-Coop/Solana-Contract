@@ -21,7 +21,7 @@ import * as borsh from "borsh";
 
 // Contract Program ID
 const PROGRAM_ID = new PublicKey(
-  "GNPrwXhZ9QqsusXakbHKx6DxbMjAhpGjHCti2ouxF47V"
+  "EKbVq2UphYrVd1skhidnXsUpU5fzV9ngWK9L1exseGDu"
 );
 
 // Locking Types enum
@@ -146,58 +146,56 @@ describe("ChainCoopSaving - Complete Test Suite", () => {
 
   // Helper function to create connection to local test validator
   async function createConnectionWithRetry(): Promise<Connection> {
-    const LOCAL_VALIDATOR_URL = 'http://127.0.0.1:8899';
-    const conn = new Connection(LOCAL_VALIDATOR_URL, 'confirmed');
-    
+  const DEVNET_ENDPOINTS = [
+    "https://api.devnet.solana.com",
+    "https://solana-devnet.rpcpool.com"
+  ];
+
+  for (const endpoint of DEVNET_ENDPOINTS) {
     try {
-      console.log('Connecting to local test validator...');
+      console.log(`Connecting to ${endpoint}...`);
+      const conn = new Connection(endpoint, "confirmed");
       const version = await conn.getVersion();
-      console.log(`Connected to local validator (${version['solana-core']})`);
-      
-      // Check if validator is responsive
-      const slot = await conn.getSlot();
-      console.log(`Current slot: ${slot}`);
-      
-      // Airdrop some SOL to the default keypair for testing
-      const payer = Keypair.generate();
-      console.log('Requesting airdrop for local testing...');
-      const sig = await conn.requestAirdrop(payer.publicKey, 100 * LAMPORTS_PER_SOL);
-      await conn.confirmTransaction(sig);
-      
+      console.log(`Connected to ${endpoint} (${version['solana-core']})`);
       return conn;
-      
     } catch (error: any) {
-      console.error('❌ Failed to connect to local validator. Make sure it\'s running with:');
-      console.error('   solana-test-validator --reset');
-      console.error('\nError details:', error.message);
-      throw new Error('Local validator not available. Please start it first with: solana-test-validator --reset');
+      console.warn(`Failed to connect to ${endpoint}:`, error.message);
+      continue;
     }
   }
+  throw new Error("All devnet endpoints failed to connect");
+}
 
   // Helper function to get a random delay between min and max
   function getRandomDelay(min: number, max: number): number {
     return Math.floor(Math.random() * (max - min + 1) + min);
   }
 
-  // Simplified airdrop function for local test validator
+  // Simplified airdrop function
   async function airdropWithRetry(
-    publicKey: PublicKey,
-    amount: number
-  ): Promise<string> {
+  publicKey: PublicKey,
+  amount: number
+): Promise<string> {
+  const maxRetries = 5;
+  let lastError;
+
+  for (let i = 0; i < maxRetries; i++) {
     try {
       console.log(`Airdropping ${amount / LAMPORTS_PER_SOL} SOL to ${publicKey.toBase58().slice(0, 8)}...`);
-      
       const signature = await connection.requestAirdrop(publicKey, amount);
       await connection.confirmTransaction(signature, 'confirmed');
-      
       console.log(`Airdrop successful to ${publicKey.toBase58().slice(0, 8)}`);
       return signature;
-      
     } catch (error: any) {
-      console.error(`❌ Airdrop failed: ${error.message}`);
-      throw error;
+      lastError = error;
+      const delay = 2000 * (i + 1); // Exponential backoff
+      console.warn(`Attempt ${i + 1} failed, retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
+  console.error(`Airdrop failed after ${maxRetries} attempts:`, lastError.message);
+  throw lastError;
+}
 
   before(async function () {
     this.timeout(300000); // Increased timeout to 5 minutes
